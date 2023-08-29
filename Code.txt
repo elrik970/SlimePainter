@@ -1,0 +1,333 @@
+## Follow Waypoints
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using System.Collections.Generic;
+
+public class Player : MonoBehaviour
+{
+    // Start is called before the first frame update
+    public bool Moving = false;
+    // public GameObject[] WayPoints;
+    public float RotateSpeed;
+    public Rigidbody rb;
+    private Camera Camera;
+    public AnimationCurve MovementCurve;
+    public AnimationCurve SlowmentCurve;
+    RaycastHit raycastHit;
+    public float SlimeSpeedMultiplier = 0.5f;
+    public List<GameObject> WayPoints = new List<GameObject>();
+    public float SlimeSpeed = 5f;
+    public float WhenSlowDown;
+    private bool DidSlowDown = false;
+    public float TimeInMovement = 0f;
+    public float currentTime = 0f;
+    public float maxTime = 2f;
+    private PlayerMovement movement;
+    void Awake() {
+        movement = new PlayerMovement();
+    }
+    void OnEnable() {
+        movement.Enable();
+    }
+
+    void OnDisable() {
+        if (movement != null) movement.Disable();
+    }
+
+    void Start()
+    {
+        Camera = Camera.main;
+        // rb = GetComponent<Rigidbody>();
+    }
+    void Move() {
+        if (WayPoints.Count != 0f) {
+            float distance = Vector3.Distance(WayPoints[0].transform.position, transform.position);
+            int Length = WayPoints.Count;
+            for (int i = 1; i < Length;i++)  
+            {  
+                distance += Vector3.Distance(WayPoints[i].transform.position, WayPoints[i-1].transform.position);
+            }  
+            if (distance < WhenSlowDown) {
+                if (!DidSlowDown) {
+                    TimeInMovement = 0f;
+                }
+                DidSlowDown = true;
+                SlimeSpeed = SlowmentCurve.Evaluate(TimeInMovement)*SlimeSpeedMultiplier;
+            }
+            else {
+                SlimeSpeed = MovementCurve.Evaluate(TimeInMovement)*SlimeSpeedMultiplier;
+            }
+            
+            rb.velocity = Vector3.zero;
+            currentTime+=Time.deltaTime;
+            transform.position = Vector3.MoveTowards(transform.position,WayPoints[0].transform.position,SlimeSpeed);
+            // Debug.Log((WayPoints[0].transform.position-transform.position));
+            Quaternion lookAt = Quaternion.LookRotation((WayPoints[0].transform.position-transform.position));
+            // Physics.Raycast(Camera.ScreenPointToRay(Input.mousePosition),out raycastHit);
+            // Quaternion lookAt = Quaternion.LookRotation(raycastHit.point-transform.position);
+            lookAt = Quaternion.Euler(transform.rotation.eulerAngles.x,lookAt.eulerAngles.y-180f,transform.rotation.eulerAngles.z);
+            transform.rotation = Quaternion.Slerp(transform.rotation,lookAt,Time.deltaTime*RotateSpeed);
+
+            if (transform.position == WayPoints[0].transform.position||currentTime>maxTime) {
+                Debug.Log(Vector3.Distance(WayPoints[WayPoints.Count-1].transform.position, transform.position));
+                Destroy(WayPoints[0]);  // Delete the Gameobject
+                WayPoints.Remove(WayPoints[0]);
+                currentTime = 0f;
+            }
+        }
+    } 
+        
+    
+    // Update is called once per frame
+    void Update()
+    {
+        if (Moving) {
+            TimeInMovement+=Time.deltaTime;
+            Move();
+        }
+        else {
+            if (TimeInMovement > 0) {
+                TimeInMovement = 0f;
+                DidSlowDown = false;
+            }
+        }
+        // Physics.Raycast(Camera.ScreenPointToRay(Input.mousePosition),out raycastHit);
+        // Quaternion lookAt = Quaternion.LookRotation(raycastHit.point-transform.position);
+        // lookAt = Quaternion.Euler(transform.rotation.eulerAngles.x,lookAt.eulerAngles.y-180f,transform.rotation.eulerAngles.z);
+        // transform.rotation = Quaternion.Slerp(transform.rotation,lookAt,Time.deltaTime*RotateSpeed);
+    }
+}
+
+##Set Waypoints
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class CreateFollow : MonoBehaviour
+{
+    // Start is called before the first frame update
+    // private Camera Camera;
+    private bool Clicking = false;
+    RaycastHit raycastHit;
+    public GameObject WayPoint;
+    public float maxTime = 0.2f;
+    public float currentTime = 0f;
+    private GameObject instantiated;
+    public Player Player;
+    
+    // public GameObject TestObject;
+    private Camera Camera;
+    private PlayerMovement movement;
+    void Awake() {
+        movement = new PlayerMovement();
+    }
+    void OnEnable() {
+        movement.Enable();
+    }
+
+    void OnDisable() {
+        if (movement != null) movement.Disable();
+    }
+    Vector2 move;
+    void Start()
+    {
+        Player = FindObjectOfType<Player>();
+        Camera = Camera.main;
+        movement.Controls.Clicking.performed += Click;
+    }
+    void Clicker() {
+        Ray ray = Camera.ScreenPointToRay(Input.mousePosition);
+        if (Physics.Raycast(ray,out raycastHit)) {
+            
+            currentTime += Time.deltaTime;
+            if ((currentTime > maxTime)) {
+                currentTime = 0f;
+                instantiated = (GameObject)GameObject.Instantiate(WayPoint, raycastHit.point, Quaternion.identity);
+                Player.WayPoints.Add(instantiated);
+            }   
+        }
+    } 
+    
+    // Update is called once per frame
+    void Update()
+    {
+        // Debug.Log(Camera.ScreenToWorldPoint(Input.mousePosition));
+        if (Clicking) {
+            Clicker();
+        }
+    }
+    void Click(InputAction.CallbackContext context) {
+        Clicking = ! Clicking;
+        if (Clicking == false) {
+            Player.Moving = true;
+            
+        }
+        if (Clicking) {
+            Player.Moving = false;
+            int Length = Player.WayPoints.Count;
+            for (int i = 0; i < Length;i++)  
+            {  
+                Destroy(Player.WayPoints[i]);
+            }  
+            Player.WayPoints.Clear();
+        }
+        currentTime = maxTime;
+    }
+}
+
+##ZombieSpawner
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class ZombieSpawner : MonoBehaviour
+{
+    // Start is called before the first frame update
+    public float maxTime = 0.2f;
+    public float currentTime = 0f;
+    public BoxCollider thisCollider;
+    public GameObject Zombie;
+    
+    void Start()
+    {
+        thisCollider = GetComponent<BoxCollider>();
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        currentTime += Time.deltaTime;
+        if ((currentTime > maxTime)) {
+            currentTime = 0f;
+            GameObject.Instantiate(Zombie, GetRandomPointInsideCollider(thisCollider), Quaternion.identity);
+        }   
+    }
+    public Vector3 GetRandomPointInsideCollider(BoxCollider boxCollider) {
+        Vector3 extents = boxCollider.size / 2f;
+        Vector3 point = new Vector3(
+            Random.Range( -extents.x, extents.x ),
+            Random.Range( -extents.y, extents.y ),
+            Random.Range( -extents.z, extents.z )
+        );
+    
+        return boxCollider.transform.TransformPoint( point );
+    }
+ 
+}
+
+##ZombieMovement
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using System.Collections.Generic;
+
+public class ZombieMovement : MonoBehaviour
+{
+    // Start is called before the first frame update
+    // public GameObject[] WayPoints;
+    public float RotateSpeed;
+    public List<GameObject> WayPoints = new List<GameObject>();
+    public float ZombieSpeed = 5f;
+    public float LaunchPower;
+    public float LaunchYPower;
+    public Player Player;
+    public float startingYPos = 10.01f;
+    public float health = 20f;
+    void Start()
+    {
+        Player = GameObject.FindGameObjectWithTag("Player").GetComponent<Player>();
+    }
+    void Move() {
+        if (startingYPos != 10.01f) {
+            transform.position = Vector3.MoveTowards(transform.position,Player.transform.position,ZombieSpeed);
+            transform.position = new Vector3(transform.position.x,startingYPos,transform.position.z);
+
+            Quaternion lookAt = Quaternion.LookRotation((Player.transform.position-transform.position));
+            lookAt = Quaternion.Euler(transform.rotation.eulerAngles.x,lookAt.eulerAngles.y-180f,transform.rotation.eulerAngles.z);
+            transform.rotation = Quaternion.Slerp(transform.rotation,lookAt,Time.deltaTime*RotateSpeed);
+        }
+    }
+    void IsDead() {
+        if (health <= 0f) {
+            Destroy(gameObject);
+        }
+    }
+    // Update is called once per frame
+    void Update()
+    {
+        Move();
+        IsDead();
+    }
+
+    void OnCollisionEnter(Collision col) {
+        
+        if (col.gameObject.tag == "Player") {
+            Player.rb.AddForce(-transform.forward*LaunchPower,ForceMode.Impulse);
+            Player.rb.AddForce(Vector3.up*LaunchYPower,ForceMode.Impulse);
+            Player.Moving = false;
+            int Length = Player.WayPoints.Count;
+            for (int i = 0; i < Length;i++)  
+            {  
+                Destroy(Player.WayPoints[i]);
+            }  
+            Debug.Log(Player.WayPoints);
+            Player.WayPoints.Clear();
+        }
+        if (col.gameObject.tag == "Ground") {
+            startingYPos = transform.position.y;
+        }
+        if (startingYPos == 10.01f) {
+            if (col.gameObject.tag != "Zombie") {
+                Debug.Log(col.transform.position);
+                Debug.Log(col.gameObject.tag);
+            }
+            
+        }
+    }
+}
+
+##Attack
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class Attack : MonoBehaviour
+{
+    // Start is called before the first frame update
+    public GameObject CurrentAttack;
+    public string CurrentAttackName;
+    private PlayerMovement movement;
+    void Awake() {
+        movement = new PlayerMovement();
+    }
+    void OnEnable() {
+        movement.Enable();
+    }
+
+    void OnDisable() {
+        if (movement != null) movement.Disable();
+    }
+    void Start()
+    {
+        movement.Controls.Attack.performed += OnAttack;
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        
+    }
+    void OnAttack(InputAction.CallbackContext context) {
+        if (CurrentAttackName == "FireAttack") {
+            CurrentAttack.GetComponent<FireAttack>().Play = true;
+        }
+        
+    }
+}
+
